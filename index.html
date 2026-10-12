@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单摆物理模拟器 · 意图造物与 ReAct 闭环编程实战</title>
+<style>
+  /* 深灰科技色主题 */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #1a1a24;
+    color: #e8e8f0;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    margin: 18px 0 6px;
+    color: #9fd0ff;
+  }
+  #stage {
+    background: #1a1a24;
+    border: 1px solid #2c2c3d;
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(80, 120, 255, 0.08) inset;
+  }
+</style>
+</head>
+<body>
+  <h1>单摆物理模拟器 MVP</h1>
+  <canvas id="stage" width="800" height="500"></canvas>
+
+<script>
+"use strict";
+/* =========================================================
+ * 单摆物理模拟器 · MVP（第 5 周实验 · 任务二）
+ * 物理模型：α = -(g / L) * sin(θ) - k * ω
+ *   θ：摆角（弧度）  L：摆长（像素）
+ *   g：重力加速度    k：空气阻尼系数  ω：角速度
+ * 数值积分：RK4（四阶龙格-库塔），保证摆动平滑稳定
+ * ========================================================= */
+
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
+
+// ---------- 物理参数（任务二 MVP 初始值） ----------
+const physics = {
+  L: 200,          // 摆长（像素）
+  g: 9.8,          // 重力加速度
+  k: 0.0005,       // 空气阻尼系数
+  theta: 45 * Math.PI / 180, // 初始摆角 45°
+  omega: 0,        // 角速度
+};
+
+// 支点位于画布水平中央、顶部偏下
+const PIVOT = { x: canvas.width / 2, y: 130 };
+
+// ---------- 物理微分方程（角加速度） ----------
+function acceleration(theta, omega, L, g, k) {
+  return -(g / L) * Math.sin(theta) - k * omega;
+}
+
+// ---------- RK4 数值积分：一次推进 dt ----------
+function step(dt) {
+  const { L, g, k } = physics;
+  const t0 = physics.theta, w0 = physics.omega;
+
+  const a1 = acceleration(t0, w0, L, g, k);
+  const a2 = acceleration(t0 + w0 * dt / 2, w0 + a1 * dt / 2, L, g, k);
+  const a3 = acceleration(t0 + (w0 + a1 * dt / 2) * dt / 2, w0 + a2 * dt / 2, L, g, k);
+  const a4 = acceleration(t0 + (w0 + a2 * dt / 2) * dt, w0 + a3 * dt, L, g, k);
+
+  physics.theta += dt * (w0 + dt / 6 * (a1 + a2 + a3));
+  physics.omega += dt / 6 * (a1 + 2 * a2 + 2 * a3 + a4);
+}
+
+// ---------- 渲染 ----------
+function bobPosition() {
+  return {
+    x: PIVOT.x + physics.L * Math.sin(physics.theta),
+    y: PIVOT.y + physics.L * Math.cos(physics.theta),
+  };
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const bob = bobPosition();
+
+  // 摆杆
+  ctx.strokeStyle = "#5a6a8a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PIVOT.x, PIVOT.y);
+  ctx.lineTo(bob.x, bob.y);
+  ctx.stroke();
+
+  // 支点
+  ctx.fillStyle = "#8fa0c0";
+  ctx.beginPath();
+  ctx.arc(PIVOT.x, PIVOT.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 摆球（微弱发光光效）
+  ctx.save();
+  ctx.shadowColor = "rgba(120, 170, 255, 0.9)";
+  ctx.shadowBlur = 22;
+  const grad = ctx.createRadialGradient(bob.x - 4, bob.y - 4, 2, bob.x, bob.y, 18);
+  grad.addColorStop(0, "#cfe4ff");
+  grad.addColorStop(1, "#4a7ad0");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(bob.x, bob.y, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 当前摆角读数
+  ctx.fillStyle = "#7a8bb0";
+  ctx.font = "13px Consolas, monospace";
+  ctx.fillText("θ = " + (physics.theta * 180 / Math.PI).toFixed(1) + "°   ω = " + physics.omega.toFixed(3), 14, 24);
+}
+
+// ---------- 动画主循环：requestAnimationFrame 驱动 ----------
+let lastTime = null;
+function loop(timestamp) {
+  if (lastTime === null) lastTime = timestamp;
+  // 固定子步长积分，避免帧间隔波动导致物理不稳定
+  let elapsed = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  const SUB = 4;                 // 每帧拆 4 个子步
+  const dt = elapsed / SUB;
+  for (let i = 0; i < SUB; i++) step(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
