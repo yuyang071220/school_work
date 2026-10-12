@@ -30,11 +30,56 @@
     border-radius: 12px;
     box-shadow: 0 0 40px rgba(80, 120, 255, 0.08) inset;
   }
+  /* 控制面板（任务三增量） */
+  #panel {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+    margin: 16px 0 26px;
+    padding: 14px 22px;
+    background: #20202e;
+    border: 1px solid #2c2c3d;
+    border-radius: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .ctrl { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
+  .ctrl label { font-size: 13px; color: #9fb0d0; }
+  .ctrl label b { color: #9fd0ff; font-family: Consolas, monospace; }
+  input[type="range"] { accent-color: #5a8ae0; cursor: pointer; }
+  #resetBtn {
+    padding: 9px 22px;
+    border: 1px solid #4a6ab0;
+    border-radius: 8px;
+    background: #2a3a5e;
+    color: #dce8ff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #resetBtn:hover { background: #3a4e7e; }
 </style>
 </head>
 <body>
   <h1>单摆物理模拟器 MVP</h1>
   <canvas id="stage" width="800" height="500"></canvas>
+
+  <!-- 任务三增量：实时参数交互控制面板 -->
+  <div id="panel">
+    <div class="ctrl">
+      <label>摆长 L = <b id="valL">200</b> px</label>
+      <input type="range" id="sliderL" min="100" max="350" step="1" value="200">
+    </div>
+    <div class="ctrl">
+      <label>重力 g = <b id="valG">9.8</b></label>
+      <input type="range" id="sliderG" min="1" max="25" step="0.1" value="9.8">
+    </div>
+    <div class="ctrl">
+      <label>阻尼 k = <b id="valK">0.0005</b></label>
+      <input type="range" id="sliderK" min="0.000" max="0.010" step="0.0001" value="0.0005">
+    </div>
+    <button id="resetBtn">重置摆动</button>
+  </div>
 
 <script>
 "use strict";
@@ -124,6 +169,34 @@ function render() {
   ctx.font = "13px Consolas, monospace";
   ctx.fillText("θ = " + (physics.theta * 180 / Math.PI).toFixed(1) + "°   ω = " + physics.omega.toFixed(3), 14, 24);
 }
+
+// ---------- 任务三增量：滑块实时绑定 ----------
+const sliderL = document.getElementById("sliderL");
+const sliderG = document.getElementById("sliderG");
+const sliderK = document.getElementById("sliderK");
+const valL = document.getElementById("valL");
+const valG = document.getElementById("valG");
+const valK = document.getElementById("valK");
+
+// 滑块 → 物理参数（拖动即时生效，物理模拟无级响应）
+sliderL.addEventListener("input", () => {
+  physics.L = parseFloat(sliderL.value);
+  valL.textContent = physics.L.toFixed(0);
+});
+sliderG.addEventListener("input", () => {
+  physics.g = parseFloat(sliderG.value);
+  valG.textContent = physics.g.toFixed(1);
+});
+sliderK.addEventListener("input", () => {
+  physics.k = parseFloat(sliderK.value);
+  valK.textContent = physics.k.toFixed(4);
+});
+
+// 重置摆动：精准回到 45° 初始状态
+document.getElementById("resetBtn").addEventListener("click", () => {
+  physics.theta = Math.PI / 4;
+  physics.omega = 0;
+});
 
 // ---------- 动画主循环：requestAnimationFrame 驱动 ----------
 let lastTime = null;
