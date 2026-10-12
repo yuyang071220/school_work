@@ -58,6 +58,20 @@
     transition: background 0.2s;
   }
   #resetBtn:hover { background: #3a4e7e; }
+  /* 天体场景胶囊按钮（进阶挑战 B） */
+  #sceneBar { display: flex; gap: 12px; margin-bottom: 30px; }
+  .scene {
+    padding: 8px 18px;
+    border: 1px solid #3a3a50;
+    border-radius: 999px;
+    background: #23232f;
+    color: #c8d2e8;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .scene:hover { border-color: #5a8ae0; color: #ffffff; }
+  .scene.active { background: #2a4a80; border-color: #5a8ae0; color: #ffffff; }
 </style>
 </head>
 <body>
@@ -79,6 +93,14 @@
       <input type="range" id="sliderK" min="0.000" max="0.010" step="0.0001" value="0.0005">
     </div>
     <button id="resetBtn">重置摆动</button>
+  </div>
+
+  <!-- 进阶挑战 B：天体预设场景胶囊按钮 -->
+  <div id="sceneBar">
+    <button class="scene active" data-g="9.8">🌍 地球</button>
+    <button class="scene" data-g="1.62">🌕 月球</button>
+    <button class="scene" data-g="24.79">🪐 木星</button>
+    <button class="scene" data-g="0.5">🛸 太空</button>
   </div>
 
 <script>
@@ -198,6 +220,65 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   physics.omega = 0;
 });
 
+// ---------- 进阶挑战 B：天体预设场景 + 平滑重力过渡 + 持久化 ----------
+const STORAGE_KEY = "week05_pendulum_params";
+const sceneButtons = Array.from(document.querySelectorAll(".scene"));
+let gTarget = physics.g; // 目标重力值，每帧向其平滑逼近
+
+sceneButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    gTarget = parseFloat(btn.dataset.g);
+    sceneButtons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    saveParams();
+  });
+});
+
+// 每帧将 g 以指数缓动逼近目标值，联动滑块同步显示
+function easeGravity(dt) {
+  physics.g += (gTarget - physics.g) * Math.min(1, dt * 6);
+  sliderG.value = Math.min(Math.max(physics.g, 1), 25).toFixed(1);
+  valG.textContent = physics.g.toFixed(1);
+}
+
+// 参数变化时自动写入 localStorage（滑块拖动与场景切换均触发）
+function saveParams() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      L: physics.L, g: physics.g, k: physics.k,
+    }));
+  } catch (e) { /* 隐私模式下 localStorage 不可用时静默降级 */ }
+}
+sliderL.addEventListener("change", saveParams);
+sliderK.addEventListener("change", saveParams);
+sliderG.addEventListener("change", saveParams);
+
+// 页面加载时读取本地缓存，恢复上次自定义参数
+function restoreParams() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (typeof saved.L === "number") {
+      physics.L = saved.L;
+      sliderL.value = saved.L;
+      valL.textContent = saved.L.toFixed(0);
+    }
+    if (typeof saved.k === "number") {
+      physics.k = saved.k;
+      sliderK.value = saved.k;
+      valK.textContent = saved.k.toFixed(4);
+    }
+    if (typeof saved.g === "number") {
+      physics.g = saved.g;
+      gTarget = saved.g;
+      sliderG.value = Math.min(Math.max(saved.g, 1), 25).toFixed(1);
+      valG.textContent = saved.g.toFixed(1);
+    }
+  } catch (e) { /* 缓存损坏时忽略，使用默认参数 */ }
+}
+restoreParams();
+
 // ---------- 动画主循环：requestAnimationFrame 驱动 ----------
 let lastTime = null;
 function loop(timestamp) {
@@ -208,6 +289,7 @@ function loop(timestamp) {
   const SUB = 4;                 // 每帧拆 4 个子步
   const dt = elapsed / SUB;
   for (let i = 0; i < SUB; i++) step(dt);
+  easeGravity(elapsed);          // 天体场景重力平滑过渡
   render();
   requestAnimationFrame(loop);
 }
